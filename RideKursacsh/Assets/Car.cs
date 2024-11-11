@@ -31,17 +31,18 @@ public class Car : MonoBehaviour
     [SerializeField] float[] gearRatios;
     [SerializeField] AnimationCurve PowerFromNRE;
     public float engineTorque;
-    public float accelerationCurve;
     public int MaxRPM;
 
     public float engineResistance = 5f; // значение сопротивления
 
     public float starterForce;
 
-    float initialDrag;
+    IEnumerator RestartCorutine;
+    bool isStarting = false;
+    bool isSwitchFromN = false;
+    [SerializeField] float idleTorqleCoef;
     private void Start()
     {
-        initialDrag = rb.drag;
         if (SMTM != null)
         {
             SMTM.Init(125 / 3.6f, MaxRPM);
@@ -50,30 +51,45 @@ public class Car : MonoBehaviour
     }
     public void RestartEngine()
     {
-        StartCoroutine(RestartEngCorutne());
+        if (RestartCorutine != null) { StopCoroutine(RestartCorutine); }
+        StartCoroutine(RestartCorutine = RestartEngCorutne());
     }
     public void BreakEngine()
     {
         isEngineRun = false;
-        engineWhel.motorTorque = 0;
-        frontLeftWheel.motorTorque = 0;
-        rearLeftWheel.motorTorque = 0;
+        //engineWhel.motorTorque = 0;
+        //frontLeftWheel.motorTorque = 0;
+        //frontRightWheel.motorTorque = 0;
+
+        //engineWhel.brakeTorque = baseBrakeForce();
+        //frontLeftWheel.brakeTorque = baseBrakeForce();
+        //frontRightWheel.brakeTorque = baseBrakeForce();
     }
+    
+    //float baseBrakeForce()
+    //{
+    //    return isEngineRun ? 0 : engineResistance;
+    //}
     IEnumerator RestartEngCorutne()
     {
+        isStarting = true;
+        engineWhel.brakeTorque = 0;
+        frontLeftWheel.brakeTorque = 0;
+        frontRightWheel.brakeTorque = 0;
         if (currentGear == 1)
         {
-            engineWhel.motorTorque = starterForce;
+            engineWhel.motorTorque = starterForce / 10;
         }
         else
         {
-            frontLeftWheel.motorTorque = starterForce;
-            rearLeftWheel.motorTorque = starterForce;
+            frontLeftWheel.motorTorque = starterForce * gearRatios[currentGear];
+            rearLeftWheel.motorTorque = starterForce * gearRatios[currentGear];
         }
         yield return new WaitForSeconds(Random.Range(0.25f, 0.5f));
         engineWhel.motorTorque = 0;
         frontLeftWheel.motorTorque = 0;
         rearLeftWheel.motorTorque = 0;
+        isStarting = false;
         isEngineRun = true;
     }
     public void ChangeGas(float input)
@@ -87,32 +103,28 @@ public class Car : MonoBehaviour
     
     public void ChangeTransmission(int i)
     {
+        if (currentGear == 1) { isSwitchFromN = true; }
         currentGear = Mathf.Clamp(currentGear + i, 0, gearRatios.Length-1);
         SMTM.UpdateTransmission(currentGear);
         
     }
-    private float RestoreTorque(WheelCollider w)
-    {
-        float wheelRPMBeforeShift = w.rpm;
-        float targetAngularVelocity = (wheelRPMBeforeShift / 60f) * 2f * Mathf.PI; // Переводим RPM в рад/с
-        float inertia = 0.5f * w.mass * Mathf.Pow(w.radius, 2); // Момент инерции колеса
-        return targetAngularVelocity * inertia / Time.fixedDeltaTime;
-    }
     private void FixedUpdate()
     {
-        if (isEngineRun)
+        if (!isStarting)
         {
+
             HandleMotor();
         }
-        else
-        {
-            BreakEngine();
-        }
-
+        //else if (!isStarting && (engineWhel.motorTorque != 0 || frontLeftWheel.motorTorque != 0 || frontRightWheel.motorTorque != 0))
+        //{
+        //    BreakEngine();
+        //    Debug.Log("BreakPrinuditelno");
+        //}
         HandleSteering();
         UpdateWheelModels();
         HandleUI();
     }
+   
     float GetAverageWheelRPM()
     {
         //if (!isEngineRun) { return 0; }
@@ -124,30 +136,12 @@ public class Car : MonoBehaviour
 
         return averageRPM / gearRatios[currentGear];
     }
-    public static float FindFirstTimeForValue(AnimationCurve curve, float targetValue, float tolerance = 0.01f, float step = 0.01f)
-    {
-        // Получаем начальное и конечное время из ключей кривой
-        float startTime = curve.keys[0].time;
-        float endTime = curve.keys[curve.length - 1].time;
-
-        for (float t = startTime; t <= endTime; t += step)
-        {
-            float value = curve.Evaluate(t);
-
-            // Проверяем, находится ли значение в пределах допустимой погрешности
-            if (Mathf.Abs(value - targetValue) <= tolerance)
-            {
-                return t; // Возвращаем первое найденное время
-            }
-        }
-
-        return 1; // Если значение не найдено
-    }
+   
     void HandleUI()
     {
         if (SMTM != null)
         {
-            SMTM.UpdateValues(rb.velocity.magnitude, GetAverageWheelRPM());
+            SMTM.UpdateValues(rb.velocity.magnitude, (isEngineRun || isStarting ? GetAverageWheelRPM() : 0) );
         }
     }
     void HandleSteering()
@@ -171,9 +165,25 @@ public class Car : MonoBehaviour
     void HandleMotor()
     {
         // Передача силы на колеса
-        float throttle = Mathf.Clamp(motorInput, 0f, 1f) + 0.15f; // Только вперед
+        float throttle = Mathf.Clamp((isEngineRun? motorInput * PowerFromNRE.Evaluate(GetAverageWheelRPM()/MaxRPM): 0) , 0f, 1f) + (isEngineRun ? idleTorqleCoef : 0); // Только вперед
         float currentTorque = (engineTorque * gearRatios[currentGear]) * throttle;
-        
+
+        if (isSwitchFromN)
+        {
+            if (currentGear == 0 || currentGear == 2)
+            {
+                currentTorque += engineWhel.motorTorque * engineTorque;
+                if (GetAverageWheelRPM() / MaxRPM > 0.15f)
+                {
+                    isSwitchFromN = false;
+                }
+            }
+            else
+            {
+                isSwitchFromN = false;
+            }
+        }
+
         if (currentGear == 1)
         {
             engineWhel.motorTorque = currentTorque;
@@ -187,6 +197,7 @@ public class Car : MonoBehaviour
             frontRightWheel.motorTorque -= frontRightWheel.rpm * engineResistance * Mathf.Abs(currentGear - 1) * Time.deltaTime;
         }
 
+        if (!isStarting && currentGear != 1 && !(isSwitchFromN && (currentGear == 0 || currentGear == 2)) &&  GetAverageWheelRPM() / MaxRPM < 0.1f) { BreakEngine(); }
         
     }
 

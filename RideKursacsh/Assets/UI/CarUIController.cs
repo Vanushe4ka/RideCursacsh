@@ -8,6 +8,7 @@ public class CarUIController : MonoBehaviour
     [SerializeField] SomeMeter speedometer;
     [SerializeField] SomeMeter takchometer;
     [SerializeField] Text transmissionText;
+    [SerializeField] Text DebugText;
     public void Init(float maxSpeed, float maxTakco)
     {
         speedometer.Init(maxSpeed);
@@ -32,5 +33,9 @@ public class CarUIController : MonoBehaviour
                 transmissionText.text = (i-1).ToString();
                 break;
         }
+    }
+    public void Debug(string str)
+    {
+        DebugText.text = str;
     }
 }

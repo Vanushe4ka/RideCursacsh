@@ -232,6 +232,7 @@ RectTransform:
   - {fileID: 518023705}
   - {fileID: 1152798149}
   - {fileID: 172491052}
+  - {fileID: 701392712}
   m_Father: {fileID: 1620440293}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0}
@@ -292,6 +293,7 @@ MonoBehaviour:
   speedometer: {fileID: 518023706}
   takchometer: {fileID: 1152798150}
   transmissionText: {fileID: 801745994}
+  DebugText: {fileID: 701392713}
 --- !u!1 &459944336
 GameObject:
   m_ObjectHideFlags: 0
@@ -484,6 +486,85 @@ CanvasRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 518023704}
+  m_CullTransparentMesh: 1
+--- !u!1 &701392711
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 701392712}
+  - component: {fileID: 701392714}
+  - component: {fileID: 701392713}
+  m_Layer: 5
+  m_Name: Text (Legacy)
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &701392712
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 701392711}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 372986763}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 500, y: 0}
+  m_Pivot: {x: 1, y: 0.5}
+--- !u!114 &701392713
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 701392711}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5f7201a12d95ffc409449d95f23cf332, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_Material: {fileID: 0}
+  m_Color: {r: 0, g: 0, b: 0, a: 1}
+  m_RaycastTarget: 1
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_FontData:
+    m_Font: {fileID: 10102, guid: 0000000000000000e000000000000000, type: 0}
+    m_FontSize: 24
+    m_FontStyle: 0
+    m_BestFit: 0
+    m_MinSize: 2
+    m_MaxSize: 40
+    m_Alignment: 0
+    m_AlignByGeometry: 0
+    m_RichText: 1
+    m_HorizontalOverflow: 0
+    m_VerticalOverflow: 0
+    m_LineSpacing: 1
+  m_Text: New Text
+--- !u!222 &701392714
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 701392711}
   m_CullTransparentMesh: 1
 --- !u!1 &705507993
 GameObject:
@@ -698,8 +779,8 @@ MonoBehaviour:
     serializedVersion: 2
     m_Curve:
     - serializedVersion: 3
-      time: 0.0017003417
-      value: 0.3242017
+      time: 0.0000054463744
+      value: 0.6976878
       inSlope: 2
       outSlope: 2
       tangentMode: 0
@@ -707,14 +788,14 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 0.08357777
-      value: 0.38545048
-      inSlope: 1.3648771
-      outSlope: 1.3648771
+      time: 0.07255975
+      value: 0.8090617
+      inSlope: 1.2039504
+      outSlope: 1.2039504
       tangentMode: 0
       weightedMode: 0
       inWeight: 0.33333334
-      outWeight: 0.11868375
+      outWeight: 0.10005452
     - serializedVersion: 3
       time: 0.42308363
       value: 0.997618
@@ -737,10 +818,10 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   engineTorque: 500
-  accelerationCurve: 10
   MaxRPM: 250
   engineResistance: 50
-  starterForce: 60
+  starterForce: 1200
+  idleTorqleCoef: 0.15
 --- !u!54 &935151636
 Rigidbody:
   m_ObjectHideFlags: 0
