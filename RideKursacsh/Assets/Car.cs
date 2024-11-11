@@ -26,7 +26,6 @@ public class Car : MonoBehaviour
     float motorInput;
     [SerializeField] bool isEngineRun= false;
 
-    [SerializeField] CarUIController SMTM;
     [SerializeField] int currentGear;
     [SerializeField] float[] gearRatios;
     [SerializeField] AnimationCurve PowerFromNRE;
@@ -42,6 +41,12 @@ public class Car : MonoBehaviour
     [SerializeField] float idleTorqleCoef;
     const int flipTime = 6;
     float flipTimer = 6;
+
+    [SerializeField] CarUIController SMTM;
+    [Header ("Audio")]
+    [SerializeField] AudioSource engineAudio;
+    [SerializeField] float enginePitchMul;
+    [SerializeField] float enginePitchPlus;
     private void Start()
     {
         if (SMTM != null)
@@ -110,12 +115,13 @@ public class Car : MonoBehaviour
         UpdateWheelModels();
         HandleUI();
         HandleFlip();
+        HandleAudio();
     }
     void HandleFlip()
     {
         if (Mathf.Abs(Mathf.Abs(transform.rotation.eulerAngles.x) - 180) < 10 || Mathf.Abs(Mathf.Abs(transform.rotation.eulerAngles.z) - 180) < 10)
         {
-            flipTimer -= Time.deltaTime;
+            flipTimer -= Time.fixedDeltaTime;
         }
         else
         {
@@ -222,5 +228,18 @@ public class Car : MonoBehaviour
     {
         transform.rotation = Quaternion.Euler(0, transform.rotation.eulerAngles.y, 0);
     }
-
+    public void HandleAudio()
+    {
+        if (isEngineRun || isStarting)
+        {
+            if (!engineAudio.isPlaying) { engineAudio.Play(); }
+            float pitch = enginePitchPlus + (GetAverageWheelRPM() / MaxRPM) * enginePitchMul;
+            engineAudio.pitch = pitch;
+            engineAudio.volume = pitch;
+        }
+        else
+        {
+            if (engineAudio.isPlaying) { engineAudio.Stop(); }
+        }
+    }
 }
