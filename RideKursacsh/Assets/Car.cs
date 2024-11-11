@@ -37,7 +37,7 @@ public class Car : MonoBehaviour
     public float starterForce;
 
     bool isStarting = false;
-    bool isSwitchFromN = false;
+    [SerializeField] bool isSwitchFromN = false;
     [SerializeField] float idleTorqleCoef;
     const int flipTime = 6;
     float flipTimer = 6;
@@ -175,11 +175,11 @@ public class Car : MonoBehaviour
         float throttle = Mathf.Clamp((isEngineRun? motorInput * PowerFromNRE.Evaluate(GetAverageWheelRPM()/MaxRPM): 0) , 0f, 1f) + (isEngineRun ? idleTorqleCoef : 0); // Только вперед
         float currentTorque = (engineTorque * gearRatios[currentGear]) * throttle;
 
-        if (isSwitchFromN)
+        if (isSwitchFromN )
         {
-            if (currentGear == 0 || currentGear == 2)
+            if ((currentGear == 0 || currentGear == 2) && isEngineRun)
             {
-                currentTorque += engineWhel.motorTorque * engineTorque;
+                currentTorque += engineWhel.motorTorque * engineTorque * Mathf.Clamp(currentGear-1,-1,1);
                 if (GetAverageWheelRPM() / MaxRPM > 0.15f)
                 {
                     isSwitchFromN = false;
