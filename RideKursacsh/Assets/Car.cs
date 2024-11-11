@@ -37,10 +37,11 @@ public class Car : MonoBehaviour
 
     public float starterForce;
 
-    IEnumerator RestartCorutine;
     bool isStarting = false;
     bool isSwitchFromN = false;
     [SerializeField] float idleTorqleCoef;
+    const int flipTime = 6;
+    float flipTimer = 6;
     private void Start()
     {
         if (SMTM != null)
@@ -51,25 +52,15 @@ public class Car : MonoBehaviour
     }
     public void RestartEngine()
     {
-        if (RestartCorutine != null) { StopCoroutine(RestartCorutine); }
-        StartCoroutine(RestartCorutine = RestartEngCorutne());
+        if (!isEngineRun && !isStarting)
+        {
+            StartCoroutine(RestartEngCorutne());
+        }
     }
     public void BreakEngine()
     {
         isEngineRun = false;
-        //engineWhel.motorTorque = 0;
-        //frontLeftWheel.motorTorque = 0;
-        //frontRightWheel.motorTorque = 0;
-
-        //engineWhel.brakeTorque = baseBrakeForce();
-        //frontLeftWheel.brakeTorque = baseBrakeForce();
-        //frontRightWheel.brakeTorque = baseBrakeForce();
     }
-    
-    //float baseBrakeForce()
-    //{
-    //    return isEngineRun ? 0 : engineResistance;
-    //}
     IEnumerator RestartEngCorutne()
     {
         isStarting = true;
@@ -82,13 +73,13 @@ public class Car : MonoBehaviour
         }
         else
         {
-            frontLeftWheel.motorTorque = starterForce * gearRatios[currentGear];
-            rearLeftWheel.motorTorque = starterForce * gearRatios[currentGear];
+            frontLeftWheel.motorTorque = starterForce * Mathf.Clamp( gearRatios[currentGear], -1, 1);
+            frontLeftWheel.motorTorque = starterForce * Mathf.Clamp(gearRatios[currentGear], -1, 1);
         }
-        yield return new WaitForSeconds(Random.Range(0.25f, 0.5f));
+        yield return new WaitForSeconds(Random.Range(0.4f, 0.75f));
         engineWhel.motorTorque = 0;
         frontLeftWheel.motorTorque = 0;
-        rearLeftWheel.motorTorque = 0;
+        frontLeftWheel.motorTorque = 0;
         isStarting = false;
         isEngineRun = true;
     }
@@ -115,19 +106,29 @@ public class Car : MonoBehaviour
 
             HandleMotor();
         }
-        //else if (!isStarting && (engineWhel.motorTorque != 0 || frontLeftWheel.motorTorque != 0 || frontRightWheel.motorTorque != 0))
-        //{
-        //    BreakEngine();
-        //    Debug.Log("BreakPrinuditelno");
-        //}
         HandleSteering();
         UpdateWheelModels();
         HandleUI();
+        HandleFlip();
+    }
+    void HandleFlip()
+    {
+        if (Mathf.Abs(Mathf.Abs(transform.rotation.eulerAngles.x) - 180) < 10 || Mathf.Abs(Mathf.Abs(transform.rotation.eulerAngles.z) - 180) < 10)
+        {
+            flipTimer -= Time.deltaTime;
+        }
+        else
+        {
+            flipTimer = flipTime;
+        }
+        if (flipTimer <= 0)
+        {
+            FlipOnWheels();
+        }
     }
    
     float GetAverageWheelRPM()
     {
-        //if (!isEngineRun) { return 0; }
         if (currentGear == 1)
         {
             return engineWhel.rpm;
@@ -183,18 +184,17 @@ public class Car : MonoBehaviour
                 isSwitchFromN = false;
             }
         }
-
         if (currentGear == 1)
         {
             engineWhel.motorTorque = currentTorque;
-            engineWhel.motorTorque -= engineWhel.rpm * engineResistance * Time.deltaTime;
+            engineWhel.motorTorque -= (engineWhel.rpm / MaxRPM) * engineResistance;
         }
         else
         {
             frontLeftWheel.motorTorque = currentTorque;
-            frontLeftWheel.motorTorque -= frontLeftWheel.rpm * engineResistance * Mathf.Abs(currentGear - 1) * Time.deltaTime;
+            frontLeftWheel.motorTorque -= (frontLeftWheel.rpm / MaxRPM) * engineResistance * Mathf.Abs(currentGear - 1) ;
             frontRightWheel.motorTorque = currentTorque;
-            frontRightWheel.motorTorque -= frontRightWheel.rpm * engineResistance * Mathf.Abs(currentGear - 1) * Time.deltaTime;
+            frontRightWheel.motorTorque -= (frontRightWheel.rpm / MaxRPM) * engineResistance * Mathf.Abs(currentGear - 1) ;
         }
 
         if (!isStarting && currentGear != 1 && !(isSwitchFromN && (currentGear == 0 || currentGear == 2)) &&  GetAverageWheelRPM() / MaxRPM < 0.1f) { BreakEngine(); }
@@ -218,6 +218,9 @@ public class Car : MonoBehaviour
         model.rotation = rot;
     }
 
-
+    public void FlipOnWheels()
+    {
+        transform.rotation = Quaternion.Euler(0, transform.rotation.eulerAngles.y, 0);
+    }
 
 }

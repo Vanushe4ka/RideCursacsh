@@ -5,6 +5,10 @@ using UnityEngine;
 public class Player : MonoBehaviour
 {
     [SerializeField] Car car;
+    [SerializeField] Transform cameraTransform;
+    [SerializeField] Transform cameraTarget;
+    [SerializeField] float camSpeed;
+    [SerializeField] float camRotSpeed;
     void Start()
     {
         if (car == null) 
@@ -12,9 +16,18 @@ public class Player : MonoBehaviour
             Debug.LogError("Player have not a car");
             Destroy(gameObject); 
         }
+        if (cameraTransform == null)
+        {
+            cameraTransform = Camera.main.transform;
+        }
     }
 
     // Update is called once per frame
+    private void FixedUpdate()
+    {
+
+        HanleCamera();
+    }
     void Update()
     {
         float vert = Input.GetAxisRaw("Vertical");
@@ -33,5 +46,10 @@ public class Player : MonoBehaviour
         {
             car.HandleBreak(false);
         }
+    }
+    public void HanleCamera()
+    {
+        cameraTransform.position = Vector3.Lerp(cameraTransform.position,new Vector3(cameraTarget.position.x,Mathf.Max(0.5f,cameraTarget.position.y), cameraTarget.position.z), camSpeed);
+        cameraTransform.rotation = Quaternion.Lerp(cameraTransform.rotation, cameraTarget.rotation, camRotSpeed);
     }
 }
