@@ -65,6 +65,7 @@ public class Car : MonoBehaviour
     public void BreakEngine()
     {
         isEngineRun = false;
+        isSwitchFromN = false;
     }
     IEnumerator RestartEngCorutne()
     {
@@ -179,7 +180,7 @@ public class Car : MonoBehaviour
         {
             if ((currentGear == 0 || currentGear == 2) && isEngineRun)
             {
-                currentTorque += engineWhel.motorTorque * engineTorque * Mathf.Clamp(currentGear-1,-1,1);
+                currentTorque += Mathf.Min(100, Mathf.Abs(engineWhel.motorTorque)) * engineTorque * Mathf.Clamp(currentGear-1,-1,1);
                 if (GetAverageWheelRPM() / MaxRPM > 0.15f)
                 {
                     isSwitchFromN = false;
