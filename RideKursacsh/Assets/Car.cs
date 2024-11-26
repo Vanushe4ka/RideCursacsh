@@ -24,9 +24,9 @@ public class Car : MonoBehaviour
 
     float steerInput;
     float motorInput;
-    [SerializeField] bool isEngineRun= false;
+    public bool isEngineRun= false;
 
-    [SerializeField] int currentGear;
+    public int currentGear;
     [SerializeField] float[] gearRatios;
     [SerializeField] AnimationCurve PowerFromNRE;
     public float engineTorque;
@@ -47,13 +47,32 @@ public class Car : MonoBehaviour
     [SerializeField] AudioSource engineAudio;
     [SerializeField] float enginePitchMul;
     [SerializeField] float enginePitchPlus;
+
+    Vector3 initPosition;
+
+    public int completedLaps;
+    public int checkPointIndex = 0;
+
+    public bool isStartGame = false;
+
     private void Start()
     {
+        initPosition = transform.position;
         if (SMTM != null)
         {
             SMTM.Init(125 / 3.6f, MaxRPM);
             SMTM.UpdateTransmission(currentGear);
         }
+        GameController.Instance().cars.Add(this);
+    }
+    void FallToWater()
+    {
+        checkPointIndex = 0;
+        transform.position = initPosition;
+        transform.rotation = Quaternion.identity;
+        BreakEngine();
+        rb.velocity = Vector3.zero;
+
     }
     public void RestartEngine()
     {
@@ -100,10 +119,32 @@ public class Car : MonoBehaviour
     
     public void ChangeTransmission(int i)
     {
+        if (!isStartGame) { return; }
         if (currentGear == 1) { isSwitchFromN = true; }
         currentGear = Mathf.Clamp(currentGear + i, 0, gearRatios.Length-1);
-        SMTM.UpdateTransmission(currentGear);
+        if (SMTM != null)
+        {
+            SMTM.UpdateTransmission(currentGear);
+        }
         
+    }
+    public void SetTransmission(int i)
+    {
+        if (!isStartGame) { return; }
+        if (currentGear == 1) { isSwitchFromN = true; }
+        currentGear = Mathf.Clamp(i, 0, gearRatios.Length - 1);
+        if (SMTM != null)
+        {
+            SMTM.UpdateTransmission(currentGear);
+        }
+
+    }
+    private void Update()
+    {
+        if (transform.position.y < GameController.Instance().MinY())
+        {
+            FallToWater();
+        }
     }
     private void FixedUpdate()
     {
@@ -134,7 +175,7 @@ public class Car : MonoBehaviour
         }
     }
    
-    float GetAverageWheelRPM()
+    public float GetAverageWheelRPM()
     {
         if (currentGear == 1)
         {
