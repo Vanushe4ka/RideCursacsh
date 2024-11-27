@@ -54,6 +54,7 @@ public class Car : MonoBehaviour
     public int checkPointIndex = 0;
 
     public bool isStartGame = false;
+    public string Name;
 
     private void Start()
     {
@@ -161,7 +162,7 @@ public class Car : MonoBehaviour
     }
     void HandleFlip()
     {
-        if (Mathf.Abs(Mathf.Abs(transform.rotation.eulerAngles.x) - 180) < 10 || Mathf.Abs(Mathf.Abs(transform.rotation.eulerAngles.z) - 180) < 10)
+        if (Mathf.Abs(Mathf.Abs(transform.rotation.eulerAngles.x) - 180) < 90 || Mathf.Abs(Mathf.Abs(transform.rotation.eulerAngles.z) - 180) < 90)
         {
             flipTimer -= Time.fixedDeltaTime;
         }
@@ -188,7 +189,7 @@ public class Car : MonoBehaviour
    
     void HandleUI()
     {
-        if (SMTM != null)
+        if (SMTM != null && GameController.Instance().isGameStarted)
         {
             SMTM.UpdateValues(rb.velocity.magnitude, (isEngineRun || isStarting ? GetAverageWheelRPM() : 0) );
         }

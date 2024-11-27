@@ -44,6 +44,7 @@ public class Whell : MonoBehaviour
     [SerializeField] float streatingInDirt;
     public void FixedUpdate()
     {
+        if (!GameController.isCanUpdate) { return; }
         int textureIndex = GameController.Instance().GetTextureIndexAtPoint(transform.position);
         if (textureIndex != prevIndex)
         {

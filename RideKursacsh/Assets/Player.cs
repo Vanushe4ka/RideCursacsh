@@ -5,7 +5,7 @@ using UnityEngine;
 
 public class Player : MonoBehaviour
 {
-    [SerializeField] Car car;
+    public Car car;
     [SerializeField] Transform cameraTransform;
     [SerializeField] Transform cameraTarget;
     [SerializeField] float camSpeed;
@@ -13,11 +13,9 @@ public class Player : MonoBehaviour
 
     [SerializeField] Text completedLapText;
     [SerializeField] Slider lapProgressSlider;
-    float allLapDistance;
     List<Vector3> checkPoints;
     void Start()
     {
-        CalcAllLapDistance();
         if (car == null) 
         {
             Debug.LogError("Player have not a car");
@@ -28,15 +26,6 @@ public class Player : MonoBehaviour
             cameraTransform = Camera.main.transform;
         }
        
-    }
-    void CalcAllLapDistance()
-    {
-        allLapDistance = 0;
-        checkPoints = GameController.Instance().CheckPoints();
-        for (int i = 0; i < checkPoints.Count-1; i++)
-        {
-            allLapDistance += Vector3.Distance(checkPoints[i], checkPoints[i + 1]);
-        }
     }
     // Update is called once per frame
     private void FixedUpdate()
@@ -72,17 +61,8 @@ public class Player : MonoBehaviour
     void HandlePlayerUI()
     {
         completedLapText.text = car.completedLaps.ToString();
-        float progressValue = CalcDistanceFromStart() / allLapDistance;
+        float progressValue = GameController.Instance().CalcDistanceFromStart(car) / GameController.Instance().allLapDistance;
         lapProgressSlider.value = progressValue;
     }
-    float CalcDistanceFromStart()
-    {
-        float dist = 0;
-        for (int i = 0; i < car.checkPointIndex && i <checkPoints.Count-1; i++)
-        {
-            dist += Vector3.Distance(checkPoints[i], checkPoints[i + 1]);
-        }
-        dist -= Vector3.Distance(car.transform.position, checkPoints[car.checkPointIndex]);
-        return dist;
-    }
+    
 }

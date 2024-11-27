@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using UnityEngine.UI;
 using UnityEngine;
 
+using UnityEngine.SceneManagement;
+
 public class GameController : MonoBehaviour
 {
     // Start is called before the first frame update
@@ -14,6 +16,50 @@ public class GameController : MonoBehaviour
     [SerializeField] Text countdownText;
     Terrain terrain;
     TerrainData terrainData;
+
+    public bool isGameStarted = false;
+    [SerializeField] float cameraSpeed;
+    [SerializeField] float cameraRotSpeed;
+    [SerializeField] float cameraHeigth;
+
+    private List<float> segmentLengths;
+    private float totalPathLength;
+    private Dictionary<int, List<Vector2>> arcLengthTable = new Dictionary<int, List<Vector2>>();
+    private const int samplesPerSegment = 100; // Количество выборок на сегмент
+    private float normalizedProgress = 0f; // Нормализованный прогресс по всему пути
+    [SerializeField] float lookAheadDistance;
+
+    [SerializeField] Player player;
+    [SerializeField] AIController[] aIControllers;
+
+    public int completedLapForWin = 3;
+    [SerializeField] Text completedLapsText;
+    [SerializeField] Text endTable;
+    [SerializeField] CanvasGroup endBurronsCanvasGroup;
+    [SerializeField] GameObject playerUI;
+
+    [SerializeField] GameObject pausePanel;
+    bool isPaused = false;
+
+    public float allLapDistance { get; private set; }
+    public static bool isCanUpdate{ get; private set; }
+    
+    public void QuitGame()
+    {
+        Application.Quit();
+    }
+    public void StartTheGame()
+    {
+        isGameStarted = true;
+        player.enabled = true;
+        for (int i = 0; i < aIControllers.Length; i++)
+        {
+            aIControllers[i].enabled = true;
+        }
+        StartCoroutine(StartCountdown());
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+    }
     public float MinY()
     {
         return minY;
@@ -80,6 +126,7 @@ public class GameController : MonoBehaviour
         else
         {
             _instance = this;
+            isCanUpdate = true;
             DontDestroyOnLoad(gameObject);
         }
     }
@@ -87,7 +134,28 @@ public class GameController : MonoBehaviour
     {
         terrain = currentMap.terrain;
         terrainData = terrain.terrainData;
-        StartCoroutine(StartCountdown());
+        CalculateSegmentLengths();
+        PrecomputeArcLengthTables();
+        for (int i = 0; i < currentMap.playerCheckPoints.Count - 1; i++)
+        {
+            allLapDistance += Vector3.Distance(currentMap.playerCheckPoints[i], currentMap.playerCheckPoints[i + 1]);
+        }
+
+
+    }
+    public float CalcDistanceFromStart(Car car)
+    {
+        float dist = 0;
+        for (int i = 0; i < car.checkPointIndex && i < currentMap.playerCheckPoints.Count - 1; i++)
+        {
+            dist += Vector3.Distance(currentMap.playerCheckPoints[i], currentMap.playerCheckPoints[i + 1]);
+        }
+        dist -= Vector3.Distance(car.transform.position, currentMap.playerCheckPoints[car.checkPointIndex]);
+        return dist;
+    }
+    float CalcLapProgressForCar(Car car)
+    {
+        return CalcDistanceFromStart(car) / allLapDistance;
     }
     // Update is called once per frame
     public IEnumerator StartCountdown()
@@ -136,7 +204,197 @@ public class GameController : MonoBehaviour
     }
     void Update()
     {
-        CarsCheckPointsHandle();
+        if (!isCanUpdate) { return; }
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            Pause();
+        }
+        if (isGameStarted)
+        {
+            CarsCheckPointsHandle();
+            UpdateCopletedlapsText();
+            CheckEndTheGame();
+        }
+        else
+        {
+            MoveCameraBeforeStartGame();
+        }
+    }
+    void CheckEndTheGame()
+    {
+        if (player.car.completedLaps >= completedLapForWin)
+        {
+            EndTheGame();
+        }
+    }
+    void MoveCameraBeforeStartGame()
+    {
+        if (currentMap.AIPath.Count < 2) return;
+
+        // Увеличиваем нормализованный прогресс вдоль всего пути
+        normalizedProgress += (cameraSpeed / totalPathLength) * Time.deltaTime;
+        if (normalizedProgress > 1f)
+            normalizedProgress -= 1f; // Зацикливание
+
+        // Находим текущий сегмент и локальный `t` через таблицу длины дуги
+        float segmentStartProgress = 0f;
+        int currentSegmentIndex = 0;
+
+        for (int i = 0; i < segmentLengths.Count; i++)
+        {
+            float segmentNormalizedLength = segmentLengths[i] / totalPathLength;
+            if (normalizedProgress <= segmentStartProgress + segmentNormalizedLength)
+            {
+                currentSegmentIndex = i;
+                float localProgress = (normalizedProgress - segmentStartProgress) / segmentNormalizedLength;
+
+                // Получаем точное значение `t` через длину дуги
+                float adjustedT = GetTFromArcLength(currentSegmentIndex, localProgress);
+
+                // Определяем точки сплайна
+                Vector3 p0 = currentMap.AIPath[(i - 1 + currentMap.AIPath.Count) % currentMap.AIPath.Count];
+                Vector3 p1 = currentMap.AIPath[i];
+                Vector3 p2 = currentMap.AIPath[(i + 1) % currentMap.AIPath.Count];
+                Vector3 p3 = currentMap.AIPath[(i + 2) % currentMap.AIPath.Count];
+
+                // Добавляем высоту
+                p0 += Vector3.up * cameraHeigth;
+                p1 += Vector3.up * cameraHeigth;
+                p2 += Vector3.up * cameraHeigth;
+                p3 += Vector3.up * cameraHeigth;
+
+                // Интерполяция позиции камеры с использованием Catmull-Rom
+                Vector3 targetPosition = CatmullRom(p0, p1, p2, p3, adjustedT);
+
+                // Вычисляем точку немного впереди для направления
+                float lookAheadProgress = normalizedProgress + (cameraSpeed / totalPathLength) * lookAheadDistance;
+                if (lookAheadProgress > 1f)
+                    lookAheadProgress -= 1f;
+
+                // Находим следующую точку для взгляда
+                Vector3 lookAheadPosition = GetPositionOnCurve(lookAheadProgress);
+
+                // Двигаем камеру
+                Transform camTransform = Camera.main.transform;
+                camTransform.position = targetPosition;
+
+                // Плавно поворачиваем камеру к точке впереди
+                Vector3 direction = (lookAheadPosition - targetPosition).normalized;
+                if (direction.sqrMagnitude > 0.01f)
+                {
+                    Quaternion targetRotation = Quaternion.LookRotation(direction);
+                    camTransform.rotation = Quaternion.Slerp(camTransform.rotation, targetRotation, cameraRotSpeed * Time.deltaTime);
+                }
+                break;
+            }
+            segmentStartProgress += segmentNormalizedLength;
+        }
+    }
+
+    // Получаем точку на кривой по нормализованному прогрессу
+    Vector3 GetPositionOnCurve(float normalizedProgress)
+    {
+        float segmentStartProgress = 0f;
+
+        for (int i = 0; i < segmentLengths.Count; i++)
+        {
+            float segmentNormalizedLength = segmentLengths[i] / totalPathLength;
+            if (normalizedProgress <= segmentStartProgress + segmentNormalizedLength)
+            {
+                float localProgress = (normalizedProgress - segmentStartProgress) / segmentNormalizedLength;
+                float adjustedT = GetTFromArcLength(i, localProgress);
+
+                Vector3 p0 = currentMap.AIPath[(i - 1 + currentMap.AIPath.Count) % currentMap.AIPath.Count];
+                Vector3 p1 = currentMap.AIPath[i];
+                Vector3 p2 = currentMap.AIPath[(i + 1) % currentMap.AIPath.Count];
+                Vector3 p3 = currentMap.AIPath[(i + 2) % currentMap.AIPath.Count];
+
+
+                return CatmullRom(p0, p1, p2, p3, adjustedT);
+            }
+            segmentStartProgress += segmentNormalizedLength;
+        }
+
+        // На случай ошибки возвращаем текущую позицию
+        return Camera.main.transform.position;
+    }
+
+    void CalculateSegmentLengths()
+    {
+        segmentLengths = new List<float>();
+        totalPathLength = 0f;
+
+        for (int i = 0; i < currentMap.AIPath.Count; i++)
+        {
+            Vector3 p1 = currentMap.AIPath[i];
+            Vector3 p2 = currentMap.AIPath[(i + 1) % currentMap.AIPath.Count];
+            float length = Vector3.Distance(p1, p2);
+            segmentLengths.Add(length);
+            totalPathLength += length;
+        }
+    }
+
+    void PrecomputeArcLengthTables()
+    {
+        arcLengthTable.Clear();
+
+        for (int i = 0; i < currentMap.AIPath.Count; i++)
+        {
+            Vector3 p0 = currentMap.AIPath[(i - 1 + currentMap.AIPath.Count) % currentMap.AIPath.Count];
+            Vector3 p1 = currentMap.AIPath[i];
+            Vector3 p2 = currentMap.AIPath[(i + 1) % currentMap.AIPath.Count];
+            Vector3 p3 = currentMap.AIPath[(i + 2) % currentMap.AIPath.Count];
+
+            List<Vector2> table = new List<Vector2>();
+            float cumulativeLength = 0f;
+            Vector3 previousPoint = p1;
+
+            for (int j = 0; j <= samplesPerSegment; j++)
+            {
+                float t = j / (float)samplesPerSegment;
+                Vector3 currentPoint = CatmullRom(p0, p1, p2, p3, t);
+
+                if (j > 0)
+                    cumulativeLength += Vector3.Distance(previousPoint, currentPoint);
+
+                table.Add(new Vector2(t, cumulativeLength));
+                previousPoint = currentPoint;
+            }
+
+            arcLengthTable[i] = table;
+        }
+    }
+
+    float GetTFromArcLength(int segmentIndex, float progress)
+    {
+        if (!arcLengthTable.ContainsKey(segmentIndex)) return progress;
+
+        List<Vector2> table = arcLengthTable[segmentIndex];
+        float targetLength = progress * table[^1].y;
+
+        for (int i = 0; i < table.Count - 1; i++)
+        {
+            if (table[i].y <= targetLength && table[i + 1].y >= targetLength)
+            {
+                float t1 = table[i].x;
+                float t2 = table[i + 1].x;
+                float l1 = table[i].y;
+                float l2 = table[i + 1].y;
+
+                return Mathf.Lerp(t1, t2, (targetLength - l1) / (l2 - l1));
+            }
+        }
+        return 1f; // В случае ошибки возвращаем 1
+    }
+
+    Vector3 CatmullRom(Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3, float t)
+    {
+        return 0.5f * (
+            2f * p1 +
+            (-p0 + p2) * t +
+            (2f * p0 - 5f * p1 + 4f * p2 - p3) * t * t +
+            (-p0 + 3f * p1 - 3f * p2 + p3) * t * t * t
+        );
     }
     void CarsCheckPointsHandle()
     {
@@ -151,6 +409,28 @@ public class GameController : MonoBehaviour
                     cars[i].completedLaps++;
                 }
             }
+        }
+    }
+    void UpdateCopletedlapsText()
+    {
+        cars.Sort((car1, car2) =>
+        {
+            // Сравнение по completedLaps
+            int lapComparison = car2.completedLaps.CompareTo(car1.completedLaps); // Обратный порядок
+
+            // Если completedLaps равны, используем CalcLapProgressForCar
+            if (lapComparison != 0) return lapComparison;
+
+            // Сравнение по результату CalcLapProgressForCar
+            float progress1 = CalcLapProgressForCar(car1);
+            float progress2 = CalcLapProgressForCar(car2);
+
+            return progress2.CompareTo(progress1); // Обратный порядок
+        });
+        completedLapsText.text = "";
+        for (int i = 0; i < cars.Count; i++)
+        {
+            completedLapsText.text += $"{i+1}: {cars[i].Name}\n";
         }
     }
     public int GetTextureIndexAtPoint(Vector3 worldPosition)
@@ -183,5 +463,106 @@ public class GameController : MonoBehaviour
         }
 
         return maxIndex;
+    }
+    void EndTheGame()
+    {
+        normalizedProgress = 0;
+        isGameStarted = false;
+        player.enabled = false;
+        playerUI.SetActive(false);
+        for (int i = 0; i < aIControllers.Length; i++)
+        {
+            aIControllers[i].enabled = false;
+        }
+        for (int i = 0; i < cars.Count; i++)
+        {
+            cars[i].BreakEngine();
+        }
+        StartCoroutine( MoveEndTable());
+    }
+
+    IEnumerator MoveEndTable()
+    {
+        string endText = "Таблица победителей\n\n" + completedLapsText.text;
+        completedLapsText.gameObject.SetActive(false);
+        endTable.gameObject.SetActive(true);
+        endTable.text = "";
+        float time = 1f;
+        float timer = 0;
+        endBurronsCanvasGroup.alpha = 0;
+        endBurronsCanvasGroup.gameObject.SetActive(true);
+
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+        while (timer < time)
+        {
+            timer += Time.deltaTime;
+            float t = timer / time;
+            endTable.text = endText.Substring(0, (int)(endText.Length * t));
+
+            endBurronsCanvasGroup.alpha = t;
+            yield return null;
+        }
+        endTable.text = endText;
+    }
+    public void Replay()
+    {
+        isGameStarted = false;
+        player.enabled = false;
+        playerUI.SetActive(false);
+        for (int i = 0; i < aIControllers.Length; i++)
+        {
+            aIControllers[i].enabled = false;
+        }
+        for (int i = 0; i < cars.Count; i++)
+        {
+            cars[i].BreakEngine();
+        }
+        StartCoroutine(ReplayCorutine());
+    }
+    public IEnumerator ReplayCorutine()
+    {
+        Time.timeScale = 1;
+        isCanUpdate = false;
+        pausePanel.SetActive(false);
+        player.enabled = false;
+        for (int i = 0; i < cars.Count; i++)
+        {
+            Destroy(cars[i]);
+        }
+        Quaternion cameraRoot = Camera.main.transform.rotation;
+        _instance = null;
+        SceneManager.LoadSceneAsync(0);
+        while(_instance == null)
+        {
+            yield return null;
+        }
+        if (!isGameStarted)
+        {
+            Camera.main.transform.rotation = cameraRoot;
+            _instance.normalizedProgress = normalizedProgress;
+        }
+        
+        Destroy(gameObject);
+    }
+    public void Pause()
+    {
+        isPaused = !isPaused;
+        if (isPaused)
+        {
+            Time.timeScale = 0;
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+        else
+        {
+            Time.timeScale = 1;
+            if (isGameStarted) 
+            {
+                Cursor.lockState = CursorLockMode.Locked;
+                Cursor.visible = false;
+            }
+        }
+        pausePanel.SetActive(isPaused);
     }
 }
