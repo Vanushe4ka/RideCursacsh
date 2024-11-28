@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine.UI;
 using UnityEngine;
-
+using System;
 using UnityEngine.SceneManagement;
 
 public class GameController : MonoBehaviour
@@ -40,9 +40,12 @@ public class GameController : MonoBehaviour
 
     [SerializeField] GameObject pausePanel;
     bool isPaused = false;
+    bool isRun = false;
 
     public float allLapDistance { get; private set; }
     public static bool isCanUpdate{ get; private set; }
+
+    TimeSpan timer = new TimeSpan();
     
     public void QuitGame()
     {
@@ -197,6 +200,7 @@ public class GameController : MonoBehaviour
     }
     void StartGameForCars()
     {
+        isRun = true;
         for (int i = 0; i < cars.Count; i++)
         {
             cars[i].isStartGame = true;
@@ -208,6 +212,10 @@ public class GameController : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Escape))
         {
             Pause();
+        }
+        if (isRun)
+        {
+            timer = timer.Add(TimeSpan.FromSeconds(Time.deltaTime));
         }
         if (isGameStarted)
         {
@@ -427,7 +435,7 @@ public class GameController : MonoBehaviour
 
             return progress2.CompareTo(progress1); // Обратный порядок
         });
-        completedLapsText.text = "";
+        completedLapsText.text = $"{(int)timer.TotalMinutes:D2}:{timer.Seconds:D2}:{timer.Milliseconds:D3}\n";
         for (int i = 0; i < cars.Count; i++)
         {
             completedLapsText.text += $"{i+1}: {cars[i].Name}\n";
@@ -483,7 +491,12 @@ public class GameController : MonoBehaviour
 
     IEnumerator MoveEndTable()
     {
-        string endText = "Таблица победителей\n\n" + completedLapsText.text;
+        string[] strs = completedLapsText.text.Split('\n');
+        string endText = strs[0] + "\n\nТаблица победителей\n";
+        for (int i = 1; i < strs.Length; i++)
+        {
+            endText += strs[i] + "\n";
+        }
         completedLapsText.gameObject.SetActive(false);
         endTable.gameObject.SetActive(true);
         endTable.text = "";
